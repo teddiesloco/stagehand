@@ -12,6 +12,7 @@ import type {
   ToolStartResult,
 } from "../contracts/tool.js";
 import type { TargetKind } from "../contracts/targets.js";
+import { startStagehandFacadeBridge } from "./stagehandFacadeBridge.js";
 
 const SUPPORTED_CAPABILITIES: CoreCapability[] = [
   "session",
@@ -38,9 +39,9 @@ function unsupportedSessionOperation(): never {
 }
 
 /**
- * The facade process and its browser are spawned by the agent harness. This
- * placeholder satisfies the CoreTool lifecycle contract without launching a
- * second, unobservable browser solely for the runner-side session.
+ * The facade process and its browser are owned by the runner-side bridge, but
+ * there is still no runner-driven CoreSession. This placeholder satisfies the
+ * lifecycle contract while agents and evidence probes share the MCP browser.
  */
 class StagehandFacadeMountSession implements CoreSession {
   async listPages(): Promise<CorePageHandle[]> {
@@ -83,6 +84,16 @@ export function buildStagehandFacadeEnv(
   };
 }
 
+export function buildStagehandFacadeServerSpec(
+  environment: ToolStartInput["environment"],
+): { command: string; args: string[]; env: Record<string, string> } {
+  return {
+    command: process.execPath,
+    args: [serverPath],
+    env: buildStagehandFacadeEnv(environment),
+  };
+}
+
 function connectionModeFromProfile(startupProfile: StartupProfile): ConnectionMode {
   return startupProfile === "tool_create_browserbase" ? "browserbase_native" : "launch";
 }
@@ -98,6 +109,14 @@ export class StagehandFacadeTool implements CoreTool {
   readonly supportedCapabilities: CoreCapability[] = [...SUPPORTED_CAPABILITIES];
   readonly supportedTargetKinds: TargetKind[] = ["selector", "coords", "focused", "snapshot_ref"];
 
+  constructor(
+    private readonly options: {
+      serverSpec?: (
+        environment: ToolStartInput["environment"],
+      ) => { command: string; args: string[]; env: Record<string, string> };
+    } = {},
+  ) {}
+
   async start(input: ToolStartInput): Promise<ToolStartResult> {
     const expectedProfile =
       input.environment === "BROWSERBASE" ? "tool_create_browserbase" : "tool_launch_local";
@@ -108,20 +127,27 @@ export class StagehandFacadeTool implements CoreTool {
     }
 
     const session = new StagehandFacadeMountSession();
+    const spec = (this.options.serverSpec ?? buildStagehandFacadeServerSpec)(input.environment);
+    const bridge = await startStagehandFacadeBridge({ server: spec, logger: input.logger });
+    if (typeof input.logger?.log === "function") {
+      input.logger.log({
+        category: "stagehand_facade",
+        level: 1,
+        message: `Started runner-owned stagehand_facade bridge on 127.0.0.1:${bridge.port}.`,
+      });
+    }
     return {
       session,
       agentMount: {
         via: "mcp",
         promptInstructions: FACADE_AGENT_INSTRUCTIONS,
         mcpServers: {
-          stagehand: {
-            command: process.execPath,
-            args: [serverPath],
-            env: buildStagehandFacadeEnv(input.environment),
-          },
+          stagehand: bridge.mcpServerSpec,
         },
       },
+      captureEvidence: () => bridge.captureEvidence(),
       cleanup: async () => {
+        await bridge.close();
         await session.close();
       },
       metadata: {
@@ -129,6 +155,7 @@ export class StagehandFacadeTool implements CoreTool {
         browserOwnership: "tool",
         connectionMode: connectionModeFromProfile(input.startupProfile),
         startupProfile: input.startupProfile,
+        facadeBridgePort: bridge.port,
       },
     };
   }
