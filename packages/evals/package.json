@@ -26,6 +26,7 @@
     "@browserbasehq/stagehand-integrations": "workspace:*",
     "@browserbasehq/stagehand-integrations-claude-agent-sdk": "workspace:*",
     "@browserbasehq/stagehand-integrations-codex-sdk": "workspace:*",
+    "@browserbasehq/stagehand-integrations-mastra-sdk": "workspace:*",
     "ai": "^5.0.133",
     "browse": "0.9.5",
     "dotenv": "^17.3.1",
