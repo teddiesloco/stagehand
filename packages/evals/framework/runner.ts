@@ -40,6 +40,10 @@ export type { Harness } from "./benchTypes.js";
 export { cleanupActiveRunResources } from "./activeRunCleanup.js";
 import { resolveDefaultCoreStartupProfile } from "./context.js";
 import { withBrowserbaseExtensionScope } from "../core/targets/browserbase.js";
+import {
+  isAgentMountOnlyToolSurface,
+  listCoreRunnableTools,
+} from "../core/tools/registry.js";
 
 export interface RunProgressEvent {
   type: "planned" | "started" | "passed" | "failed" | "error";
@@ -296,6 +300,20 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
   const trials = options.trials ?? 3;
   const environment = options.environment ?? "LOCAL";
 
+  const hasCoreOnly = options.tasks.every((t: DiscoveredTask) => t.tier === "core");
+  const effectiveCoreToolSurface = hasCoreOnly
+    ? (options.coreToolSurface ?? "understudy_code")
+    : undefined;
+  if (
+    hasCoreOnly &&
+    effectiveCoreToolSurface &&
+    isAgentMountOnlyToolSurface(effectiveCoreToolSurface)
+  ) {
+    throw new EvalsError(
+      `Tool surface "${effectiveCoreToolSurface}" is available only as an agent harness mount and cannot run under evals core. Use --harness claude_code or --harness codex with --tool ${effectiveCoreToolSurface}, or choose one of: ${listCoreRunnableTools().join(", ")}.`,
+    );
+  }
+
   const testcases = generateTestcases(options.tasks, options);
   options.onProgress?.({
     type: "planned",
@@ -310,10 +328,6 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
     };
   }
 
-  const hasCoreOnly = options.tasks.every((t: DiscoveredTask) => t.tier === "core");
-  const effectiveCoreToolSurface = hasCoreOnly
-    ? (options.coreToolSurface ?? "understudy_code")
-    : undefined;
   const effectiveCoreStartupProfile =
     hasCoreOnly && effectiveCoreToolSurface
       ? (options.coreStartupProfile ??

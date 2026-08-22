@@ -15,9 +15,9 @@
  */
 import {
   DEFAULT_BENCH_HARNESS,
-  parseBenchHarness,
   type Harness,
 } from "../../framework/benchTypes.js";
+import { parseBenchHarness } from "../../framework/benchHarness.js";
 
 export interface RunFlags {
   target?: string;

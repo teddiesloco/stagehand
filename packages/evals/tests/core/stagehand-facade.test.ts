@@ -2,14 +2,11 @@ import { FACADE_AGENT_INSTRUCTIONS } from "@browserbasehq/stagehand-integrations
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { getCoreTool, listCoreTools } from "../../core/tools/registry.js";
 import { buildStagehandFacadeEnv, StagehandFacadeTool } from "../../core/tools/stagehand_facade.js";
+import { claudeCodeHarness, codexHarness } from "../../framework/benchHarness.js";
 import {
-  resolveClaudeCodeStartupProfile,
-  resolveClaudeCodeToolSurface,
-} from "../../framework/claudeCodeToolAdapter.js";
-import {
-  resolveCodexStartupProfile,
-  resolveCodexToolSurface,
-} from "../../framework/codexToolAdapter.js";
+  resolveStartupProfile,
+  resolveToolSurface,
+} from "../../framework/harnesses/toolSurfaceResolution.js";
 import type { EvalLogger } from "../../logger.js";
 
 const ORIGINAL_ENV = { ...process.env };
@@ -83,14 +80,14 @@ describe("stagehand facade tool surface", () => {
   });
 
   it("is supported by both agent harnesses with tool-owned startup profiles", () => {
-    expect(resolveClaudeCodeToolSurface("stagehand_facade")).toBe("stagehand_facade");
-    expect(resolveClaudeCodeStartupProfile("stagehand_facade", "LOCAL")).toBe("tool_launch_local");
-    expect(resolveClaudeCodeStartupProfile("stagehand_facade", "BROWSERBASE")).toBe(
+    expect(resolveToolSurface(claudeCodeHarness, "stagehand_facade")).toBe("stagehand_facade");
+    expect(resolveStartupProfile("stagehand_facade", "LOCAL")).toBe("tool_launch_local");
+    expect(resolveStartupProfile("stagehand_facade", "BROWSERBASE")).toBe(
       "tool_create_browserbase",
     );
-    expect(resolveCodexToolSurface("stagehand_facade")).toBe("stagehand_facade");
-    expect(resolveCodexStartupProfile("stagehand_facade", "LOCAL")).toBe("tool_launch_local");
-    expect(resolveCodexStartupProfile("stagehand_facade", "BROWSERBASE")).toBe(
+    expect(resolveToolSurface(codexHarness, "stagehand_facade")).toBe("stagehand_facade");
+    expect(resolveStartupProfile("stagehand_facade", "LOCAL")).toBe("tool_launch_local");
+    expect(resolveStartupProfile("stagehand_facade", "BROWSERBASE")).toBe(
       "tool_create_browserbase",
     );
   });
