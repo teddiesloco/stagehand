@@ -13,10 +13,7 @@
  *   4. Config defaults (evals.config.json)
  *   5. Ambient EVAL_* env vars consumed downstream by runner/suites
  */
-import {
-  DEFAULT_BENCH_HARNESS,
-  type Harness,
-} from "../../framework/benchTypes.js";
+import { DEFAULT_BENCH_HARNESS, type Harness } from "../../framework/benchTypes.js";
 import { parseBenchHarness } from "../../framework/benchHarness.js";
 
 export interface RunFlags {

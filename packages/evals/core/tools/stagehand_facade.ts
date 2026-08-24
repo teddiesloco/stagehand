@@ -84,9 +84,11 @@ export function buildStagehandFacadeEnv(
   };
 }
 
-export function buildStagehandFacadeServerSpec(
-  environment: ToolStartInput["environment"],
-): { command: string; args: string[]; env: Record<string, string> } {
+export function buildStagehandFacadeServerSpec(environment: ToolStartInput["environment"]): {
+  command: string;
+  args: string[];
+  env: Record<string, string>;
+} {
   return {
     command: process.execPath,
     args: [serverPath],
@@ -111,9 +113,11 @@ export class StagehandFacadeTool implements CoreTool {
 
   constructor(
     private readonly options: {
-      serverSpec?: (
-        environment: ToolStartInput["environment"],
-      ) => { command: string; args: string[]; env: Record<string, string> };
+      serverSpec?: (environment: ToolStartInput["environment"]) => {
+        command: string;
+        args: string[];
+        env: Record<string, string>;
+      };
     } = {},
   ) {}
 
