@@ -10,6 +10,7 @@ import {
 import {
   claimStagehandBrowserHandle,
   createStagehandBrowserHandle,
+  invalidateStagehandBrowserHandle,
   isStagehandBrowser,
   releaseStagehandBrowserHandle,
   type BrowserbaseBrowser,
@@ -18,7 +19,7 @@ import {
   type StagehandBrowserOrigin,
   type StagehandBrowserProvider,
 } from "./index.js";
-import { CDPClient, type CDPClientOptions } from "../cdpClient.js";
+import { CDPClient, CDPConnectionClosedError, type CDPClientOptions } from "../cdpClient.js";
 import {
   createBrowserbaseSessionClient,
   type BrowserbaseSessionClient,
@@ -192,6 +193,7 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
           const source: BrowserConnectionSource = {
             cdpUrl: session.cdpUrl,
             keepAlive: true,
+            close: session.close,
           };
           return await connectBrowser({
             provider: "browserbase",
@@ -248,6 +250,11 @@ export function releaseStagehandBrowser(browser: StagehandBrowser): void {
   releaseStagehandBrowserHandle(browser);
 }
 
+/** @internal */
+export function invalidateStagehandBrowser(browser: StagehandBrowser): Promise<void> {
+  return invalidateStagehandBrowserHandle(browser);
+}
+
 async function connectBrowser(options: {
   provider: StagehandBrowserProvider;
   origin: StagehandBrowserOrigin;
@@ -278,6 +285,27 @@ async function connectBrowser(options: {
     }
     await options.afterConnect?.(cdpClient, options.signal);
     const connectedClient = cdpClient;
+    const invalidate = async () => {
+      connectedClient.close();
+      if (ownsSource) {
+        await closeSource(options.source);
+      }
+    };
+    const close = async () => {
+      try {
+        if (options.provider === "local" && options.origin === "connected") {
+          try {
+            await connectedClient.sendCommand("Browser.close");
+          } catch (error) {
+            if (!(error instanceof CDPConnectionClosedError)) throw error;
+          }
+        } else {
+          await closeSource(options.source);
+        }
+      } finally {
+        connectedClient.close();
+      }
+    };
     return createStagehandBrowserHandle({
       provider: options.provider,
       origin: options.origin,
@@ -286,12 +314,8 @@ async function connectBrowser(options: {
         cdpClient: connectedClient,
         workerInitMetadata: options.workerInitMetadata,
       } satisfies ClaimedStagehandBrowser,
-      close: async () => {
-        connectedClient.close();
-        if (ownsSource) {
-          await closeSource(options.source);
-        }
-      },
+      close,
+      invalidate,
     });
   } catch (error) {
     cdpClient?.close();

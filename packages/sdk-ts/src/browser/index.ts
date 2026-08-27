@@ -60,7 +60,8 @@ type BrowserHandleInternals = {
   attachment: unknown;
   context?: BrowserContext;
   close: () => Promise<void> | void;
-  closePromise?: Promise<void>;
+  invalidate: () => Promise<void> | void;
+  terminalPromise?: Promise<void>;
 };
 
 const browserHandleInternals = new WeakMap<StagehandBrowser, BrowserHandleInternals>();
@@ -78,7 +79,7 @@ class StagehandBrowserHandle implements StagehandBrowser {
   }
 
   get closed(): boolean {
-    return browserHandleInternals.get(this)?.closePromise !== undefined;
+    return browserHandleInternals.get(this)?.terminalPromise !== undefined;
   }
 
   get context(): BrowserContext {
@@ -93,8 +94,8 @@ class StagehandBrowserHandle implements StagehandBrowser {
 
   close(): Promise<void> {
     const internals = requireBrowserHandleInternals(this);
-    internals.closePromise ??= Promise.resolve().then(internals.close);
-    return internals.closePromise;
+    internals.terminalPromise ??= Promise.resolve().then(internals.close);
+    return internals.terminalPromise;
   }
 }
 
@@ -104,6 +105,7 @@ export function createStagehandBrowserHandle<Attachment>(options: {
   origin: StagehandBrowserOrigin;
   attachment: Attachment;
   close: () => Promise<void> | void;
+  invalidate?: () => Promise<void> | void;
   sessionId?: string;
 }): StagehandBrowser {
   return new StagehandBrowserHandle(
@@ -113,6 +115,7 @@ export function createStagehandBrowserHandle<Attachment>(options: {
       claimed: false,
       attachment: options.attachment,
       close: options.close,
+      invalidate: options.invalidate ?? options.close,
     },
     options.sessionId,
   );
@@ -121,7 +124,7 @@ export function createStagehandBrowserHandle<Attachment>(options: {
 /** @internal */
 export function claimStagehandBrowserHandle<Attachment>(browser: StagehandBrowser): Attachment {
   const internals = requireBrowserHandleInternals(browser);
-  if (internals.closePromise) {
+  if (internals.terminalPromise) {
     throw new Error("Cannot attach Stagehand to a closed browser");
   }
   if (internals.claimed) {
@@ -129,6 +132,13 @@ export function claimStagehandBrowserHandle<Attachment>(browser: StagehandBrowse
   }
   internals.claimed = true;
   return internals.attachment as Attachment;
+}
+
+/** @internal */
+export function invalidateStagehandBrowserHandle(browser: StagehandBrowser): Promise<void> {
+  const internals = requireBrowserHandleInternals(browser);
+  internals.terminalPromise ??= Promise.resolve().then(internals.invalidate);
+  return internals.terminalPromise;
 }
 
 /** @internal */
